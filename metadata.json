@@ -1,0 +1,18 @@
+{
+  "name": "geoffwilliams-simple_apache",
+  "version": "0.1.0",
+  "author": "geoffwilliams",
+  "summary": "Manage apache using puppet with configs checked out from git",
+  "license": "Apache-2.0",
+  "source": "https://github.com/GeoffWilliams/puppet-simple_apache.git",
+  "project_page": null,
+  "issues_url": "https://api.github.com/repos/GeoffWilliams/puppet-simple_apache/issues{/number}",
+  "dependencies": [
+    {
+      "name": "puppetlabs-stdlib",
+      "version_requirement": ">= 1.0.0"
+    }
+  ],
+  "data_provider": null,
+  "project_url": "https://github.com/GeoffWilliams/puppet-simple_apache.git"
+}
