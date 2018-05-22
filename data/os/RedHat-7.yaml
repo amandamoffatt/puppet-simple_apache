@@ -1,0 +1,12 @@
+simple_apache::apache_name: httpd
+simple_apache::conf_dir: /etc/httpd/conf
+simple_apache::confd_dir: /etc/httpd/conf.d
+simple_apache::mod_dir: /etc/httpd/conf.modules.d
+simple_apache::docroot: /var/www/html
+simple_apache::service_name: httpd
+simple_apache::vhost_dir: /var/www/vhosts
+simple_apache::vhost_available_dir: /etc/httpd/vhosts_available.d
+simple_apache::vhost_enabled_dir: /etc/httpd/vhosts_enabled.d
+simple_apache::vhost_log_dir: /var/log/httpd/vhosts
+simple_apache::apache_user: apache
+simple_apache::apache_group: apache
