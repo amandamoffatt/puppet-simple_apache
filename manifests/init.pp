@@ -1,19 +1,112 @@
 # Simple_apache
 #
-# _mostly_ drop-in replacement for puppetlabs-apache with built-in
-# support for downloading full vhost and module configs from git
+# mostly_ drop-in replacement for puppetlabs-apache (where noted) with built-in support for downloading full vhost
+# and module configs from git. vhost definitions can be edited in-place for AccessLog, ErrorLog, DocumentRoot or just
+# served raw.
 #
-# @param apache_name Name of the package to install
-# @param service_name Name of the service to manage
-# @param conf_dir Path to main configuration file directory
-# @param confd_dir Path to configuration fragments
-# @param mod_dir Path to configuration fragments for modules
-# @param vhost_dir Path to store virtual host docroots under
-# @param vhost_available_dir Path to checkout virtual host definitions from VCS to
+# `simple_apache` is somewhat a misnomer its simple if your an expert apache admin. Also (and more importantly) the
+# module is not called `apache` which would instantly clash with the `puppetlabs` module of the same name.
+# @see https://forge.puppet.com/puppetlabs/vcsrepo for details of how to connect to your git repositories of config files
+#
+# # Apache paths
+# You can adjust base of the paths by setting class parameters. `AccessLog` `ErrorLog` and `DocumentRoot` can be
+# adjusted on per-host basis
+#
+# ## Configuration
+#
+#   /etc/httpd/
+#   ├── conf
+#   │   ├── httpd.conf                                              <-- main httpd config
+#   │   └── magic
+#   ├── conf.d                                                      <-- unmanaged config files
+#   │   ├── autoindex.conf
+#   │   ├── php.conf
+#   │   ├── README
+#   │   ├── userdir.conf
+#   │   └── welcome.conf
+#   ├── conf.modules.d                                              <-- module configuration files to load
+#   │   ├── 00-base.conf
+#   │   ├── 00-systemd.conf
+#   │   └── php.conf -> /etc/httpd/modules_available.d/php.conf     <-- symlink to file from git
+#   ├── ...
+#   ├── modules_available.d                                         <-- all known module configs (from git)
+#   │   └── php.conf
+#   ├── ...
+#   ├── vhosts_available.d                                          <-- all known vhost configs (from git)
+#   │   ├── beta.megacorp.com.conf
+#   │   ├── dev.megacorp.com.conf
+#   │   └── test.megacorp.com.conf
+#   └── vhosts_enabled.d                                            <-- edited copies or symlinks of files from git
+#     ├── beta.megacorp.com.conf -> /etc/httpd/vhosts_available.d/beta.megacorp.com.conf
+#     └── test.megacorp.com.conf
+#
+# ## Document Root
+#
+#   /var/www/
+#   ├── cgi-bin
+#   ├── html
+#   └── vhosts
+#     └── test.megacorp.com                                         <-- one directory per vhost based on ServerName
+#       └── index.html
+#
+# ## Logs
+#
+#   /var/log/httpd/
+#   ├── access_log                                                  <-- log files from main server process
+#   ├── error_log
+#   ├── test.megacorp.com-access_log                                <-- separate error/access log for each vhost
+#   └── test.megacorp.com-error_log
+#
+# @example Hiera data for overall server settings
+#   simple_apache::server_settings:
+#     ServerAdmin: "root@megacorp.com" # pass array here if more then one setting needed
+#
+# @example Hiera data to install a vhost and edit it for correct directories (defaults)
+#   simple_apache::vhosts_enabled:
+#     "test.megacorp.com":
+#
+# @example Hiera data to install a vhost as-is (symlink/no-edits)
+#   simple_apache::vhosts_enabled:
+#     "test.megacorp.com":
+#       raw: true
+#
+# @example Hiera data to install a vhost with (non-default settings)
+#   simple_apache::vhosts_enabled:
+#     "test.megacorp.com":
+#       docroot: /home/bob/test
+#       error_log: /home/bob/test/error.log
+#       access_log: /home/bob/test/access.log
+#       log_format: '"%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-agent}i\"" combined'
+#
+# @example Hiera data to install a module (file must exist in config files from git)
+#   simple_apache::modules_enabled:
+#     - "php.conf"
+#
+# @example Hiera data to configure your git sources
+#   simple_apache::vcs_config:
+#     "vhosts":
+#       source => "https://git.megacorp.com/git/apache-vhosts.git",
+#     "modules":
+#       source => "https://git.megacorp.com/git/apache-modules.git",
+#
+# @param apache_name Name of the package to install (puppetlabs-apache compatible)
+# @param service_name Name of the service to manage (puppetlabs-apache compatible)
+# @param conf_dir Path to main configuration file directory (puppetlabs-apache compatible)
+# @param confd_dir Path to configuration fragments (puppetlabs-apache compatible)
+# @param mod_dir Path to configuration fragments for modules (puppetlabs-apache compatible)
+# @param logroot Path to directory to store all logs in (puppetlabs-apache compatible)
+# @param vhost_dir Path to store virtual host docroots under (puppetlabs-apache compatible)
+# @param vhost_available_dir Path to checkout virtual host definitions from VCS
+# @param vhost_enabled_dir Directory containing active vhost entries
+# @param mod_available_dir Path to checkout module configs from VCS
 # @param vcs_config Checkout details for config files from git (see examples)
 # @param vhosts_enabled Hash of sites to enable (must be present in `vhost_available_dir`)
-# @param manage_package `true` to enable management of the package
-# @param manage_service `true` to enable management of the service
+# @param modules_enabled Array of modules to enable (must be present in `mod_available_dir`)
+# @param manage_package `true` to enable management of the package (puppetlabs-apache compatible)
+# @param manage_service `true` to enable management of the service (puppetlabs-apache compatible)
+# @param apache_user User who should own apache-writable files (puppetlabs-apache compatible)
+# @param apache_group Group who should own apache-writable files (puppetlabs-apache compatible)
+# @param server_settings Hash of server settings to apply to `httpd.conf` using augeas
 class simple_apache(
   String $apache_name,
   String $service_name,
@@ -21,13 +114,15 @@ class simple_apache(
   String $confd_dir,
   String $mod_dir,
   String $vhost_dir,
-  String $vhost_log_dir,
+  String $logroot,
   String $vhost_available_dir,
+  String $mod_available_dir,
   String $vhost_enabled_dir,
   String $apache_user,
   String $apache_group,
   Hash $vcs_config = {},
   Hash[String, Hash] $vhosts_enabled = {},
+  Array[String] $modules_enabled = {},
   Boolean $manage_package = true,
   Boolean $manage_service = true,
   Hash[String,Variant[String,Array[String]]] $server_settings = {},
@@ -38,6 +133,13 @@ class simple_apache(
     group => "root",
     mode  => "0644",
   }
+
+  Vcsrepo {
+    ensure   => latest,
+    provider => git,
+    notify   => Service[$service_name],
+  }
+
 
   $main_config_file = "${conf_dir}/httpd.conf"
   fm_prepend { $main_config_file:
@@ -68,7 +170,7 @@ class simple_apache(
     notify => Service[$service_name],
   }
 
-  file { $vhost_log_dir:
+  file { $logroot:
     ensure => directory,
     owner  => $apache_user,
     group  => $apache_group,
@@ -89,44 +191,49 @@ class simple_apache(
     }
   }
 
-  vcsrepo {
-    default:
-      ensure   => latest,
-      provider => git,
-      notify   => Service[$service_name],
-    ;
 
-    $vhost_available_dir:
+  if has_key($vcs_config, "vhosts") {
+    vcsrepo { $vhost_available_dir:
       * => $vcs_config["vhosts"],
+    }
+
   }
 
+  if has_key($vcs_config, "modules") {
+    vcsrepo { $mod_available_dir:
+      * => $vcs_config["modules"],
+    }
+  }
+
+
+  # Activate virtual hosts requested by either symlinking or copying file + editing (from checked out code)
   $vhosts_enabled.each |$key,$opts| {
     $conf_file = "${vhost_enabled_dir}/${key}.conf"
     $conf_file_upstream = "${vhost_available_dir}/${key}.conf"
 
 
-    $error_log = pick($opts['error_log'], "${vhost_log_dir}/${key}-error_log")
-    $error_log_dir = dirname($error_log)
-    $access_log = pick($opts['access_log'], "${vhost_log_dir}/${key}-access_log")
-    $access_log_dir = dirname($access_log)
+    $error_log = pick($opts['error_log'], "${logroot}/${key}-error_log")
+    $error_logroot = dirname($error_log)
+    $access_log = pick($opts['access_log'], "${logroot}/${key}-access_log")
+    $access_logroot = dirname($access_log)
     $docroot = pick($opts['docroot'], "${vhost_dir}/${key}")
 
-    if ! defined(File[$error_log_dir]) {
-      file { $error_log_dir:
+    if ! defined(File[$error_logroot]) {
+      file { $error_logroot:
         ensure => directory,
         owner  => $apache_user,
         group  => $apache_group,
-        mode   => 0640,
+        mode   => "0640",
         notify => Service[$service_name],
       }
     }
 
-    if ! defined(File[$access_log_dir]) {
-      file { $access_log_dir:
+    if ! defined(File[$access_logroot]) {
+      file { $access_logroot:
         ensure => directory,
         owner  => $apache_user,
         group  => $apache_group,
-        mode   => 0640,
+        mode   => "0640",
         notify => Service[$service_name],
       }
     }
@@ -162,7 +269,7 @@ class simple_apache(
 
       Apache_directive {
         ensure  => present,
-        notify => Service[$service_name],
+        notify  => Service[$service_name],
         require => Exec[$exec_title],
         context => "VirtualHost",
       }
@@ -187,6 +294,13 @@ class simple_apache(
 
     }
 
-
+    # Activate module config files requested by symlinking from checked out code
+    $modules_enabled.each |$module| {
+      file { "${mod_dir}/${module}":
+        ensure => link,
+        target => "${mod_available_dir}/${module}",
+        notify => Service[$service_name],
+      }
+    }
   }
 }

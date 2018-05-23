@@ -26,7 +26,7 @@
     },
     {
       "name":"geoffwilliams-filemagic",
-      "version_requirement": "0.3.0"
+      "version_requirement": "0.4.0"
     }
   ],
   "data_provider": null,
