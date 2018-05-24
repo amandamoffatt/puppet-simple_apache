@@ -180,9 +180,9 @@ log for each vhost  └── test.megacorp.com-error_log</p>
       
       <pre class="example code"><code>simple_apache::vcs_config:
   &quot;vhosts&quot;:
-    source =&gt; &quot;https://git.megacorp.com/git/apache-vhosts.git&quot;,
+    source: &quot;https://git.megacorp.com/git/apache-vhosts.git&quot;
   &quot;modules&quot;:
-    source =&gt; &quot;https://git.megacorp.com/git/apache-modules.git&quot;,</code></pre>
+    source: &quot;https://git.megacorp.com/git/apache-modules.git&quot;</code></pre>
     
   </div>
 <p class="tag_title">Parameters:</p>
@@ -371,7 +371,7 @@ log for each vhost  └── test.megacorp.com-error_log</p>
         <span class='name'>vhosts_enabled</span>
       
       
-        <span class='type'>(<tt>Hash[String, Hash]</tt>)</span>
+        <span class='type'>(<tt>Hash[String, Optional[Hash]]</tt>)</span>
       
       
         <em class="default">(defaults to: <tt>{}</tt>)</em>
@@ -393,7 +393,7 @@ log for each vhost  └── test.megacorp.com-error_log</p>
         <span class='type'>(<tt>Array[String]</tt>)</span>
       
       
-        <em class="default">(defaults to: <tt>{}</tt>)</em>
+        <em class="default">(defaults to: <tt>[]</tt>)</em>
       
       
         &mdash;
@@ -705,7 +705,18 @@ compatible)</p>
 303
 304
 305
-306</pre>
+306
+307
+308
+309
+310
+311
+312
+313
+314
+315
+316
+317</pre>
       </td>
       <td>
         <pre class="code"><span class="info file"># File 'manifests/init.pp', line 110</span>
@@ -724,8 +735,8 @@ class simple_apache(
   String $apache_user,
   String $apache_group,
   Hash $vcs_config = {},
-  Hash[String, Hash] $vhosts_enabled = {},
-  Array[String] $modules_enabled = {},
+  Hash[String, Optional[Hash]] $vhosts_enabled = {},
+  Array[String] $modules_enabled = [],
   Boolean $manage_package = true,
   Boolean $manage_service = true,
   Hash[String,Variant[String,Array[String]]] $server_settings = {},
@@ -744,24 +755,32 @@ class simple_apache(
   }
 
 
-  $main_config_file = &quot;${conf_dir}/httpd.conf&quot;
-  fm_prepend { $main_config_file:
-    ensure =&gt; present,
-    data   =&gt; &quot;# Puppet has modified this file from the original!&quot;,
-    notify =&gt; Service[$service_name],
-  }
-
   if $manage_package {
+    $package_ref = Package[$apache_name]
     package { $apache_name:
       ensure =&gt; present,
     }
+  } else {
+    $package_ref = undef
   }
 
   if $manage_service {
+    $service_ref = Service[$service_name]
     service { $service_name:
-      ensure =&gt; running,
-      enable =&gt; true,
+      ensure  =&gt; running,
+      enable  =&gt; true,
+      require =&gt; $package_ref,
     }
+  } else {
+    $service_ref = undef
+  }
+
+  $main_config_file = &quot;${conf_dir}/httpd.conf&quot;
+  fm_prepend { $main_config_file:
+    ensure  =&gt; present,
+    data    =&gt; &quot;# Puppet has modified this file from the original!&quot;,
+    notify  =&gt; $service_ref,
+    require =&gt; $package_ref,
   }
 
   file { $vhost_dir:
@@ -770,27 +789,30 @@ class simple_apache(
 
   file { $vhost_enabled_dir:
     ensure =&gt; directory,
-    notify =&gt; Service[$service_name],
+    notify =&gt; $service_ref,
   }
 
   file { $logroot:
     ensure =&gt; directory,
     owner  =&gt; $apache_user,
     group  =&gt; $apache_group,
-    notify =&gt; Service[$service_name],
+    notify =&gt; $service_ref,
   }
 
 
   file_line { &quot;${main_config_file} IncludeOptional vhosts_enabled/*.conf&quot;:
-    ensure =&gt; present,
-    path   =&gt; $main_config_file,
-    line   =&gt; &quot;IncludeOptional ${vhost_enabled_dir}/*.conf&quot;,
-    notify =&gt; Service[$service_name],
+    ensure  =&gt; present,
+    path    =&gt; $main_config_file,
+    line    =&gt; &quot;IncludeOptional ${vhost_enabled_dir}/*.conf&quot;,
+    notify  =&gt; $service_ref,
+    require =&gt; $package_ref,
   }
 
   $server_settings.each |$key, $value| {
     apache_directive { &quot;${key} in ${main_config_file}&quot;:
-      args =&gt; $value,
+      args    =&gt; $value,
+      notify  =&gt; $service_ref,
+      require =&gt; $package_ref,
     }
   }
 
@@ -815,11 +837,11 @@ class simple_apache(
     $conf_file_upstream = &quot;${vhost_available_dir}/${key}.conf&quot;
 
 
-    $error_log = pick($opts[&#39;error_log&#39;], &quot;${logroot}/${key}-error_log&quot;)
+    $error_log = pick(dig($opts, &#39;error_log&#39;), &quot;${logroot}/${key}-error_log&quot;)
     $error_logroot = dirname($error_log)
-    $access_log = pick($opts[&#39;access_log&#39;], &quot;${logroot}/${key}-access_log&quot;)
+    $access_log = pick(dig($opts, &#39;access_log&#39;), &quot;${logroot}/${key}-access_log&quot;)
     $access_logroot = dirname($access_log)
-    $docroot = pick($opts[&#39;docroot&#39;], &quot;${vhost_dir}/${key}&quot;)
+    $docroot = pick(dig($opts, &#39;docroot&#39;), &quot;${vhost_dir}/${key}&quot;)
 
     if ! defined(File[$error_logroot]) {
       file { $error_logroot:
@@ -827,7 +849,7 @@ class simple_apache(
         owner  =&gt; $apache_user,
         group  =&gt; $apache_group,
         mode   =&gt; &quot;0640&quot;,
-        notify =&gt; Service[$service_name],
+        notify =&gt; $service_ref,
       }
     }
 
@@ -837,24 +859,24 @@ class simple_apache(
         owner  =&gt; $apache_user,
         group  =&gt; $apache_group,
         mode   =&gt; &quot;0640&quot;,
-        notify =&gt; Service[$service_name],
+        notify =&gt; $service_ref,
       }
     }
 
 
     file { $docroot:
       ensure =&gt; directory,
-      notify =&gt; Service[$service_name],
+      notify =&gt; $service_ref,
     }
 
 
-    if pick($opts[&#39;raw&#39;], false) {
+    if pick(dig($opts, &#39;raw&#39;), false) {
       # in raw mode we create a simple symlink without any rewriting - you must make sure all dirs match
       # the ones specified in $opts yourself
       file { $conf_file:
         ensure =&gt; link,
         target =&gt; $conf_file_upstream,
-        notify =&gt; Service[$service_name],
+        notify =&gt; $service_ref,
       }
     } else {
       $exec_title = &quot;install file ${conf_file}&quot;
@@ -872,8 +894,8 @@ class simple_apache(
 
       Apache_directive {
         ensure  =&gt; present,
-        notify  =&gt; Service[$service_name],
-        require =&gt; Exec[$exec_title],
+        notify  =&gt; $service_ref,
+        require =&gt; [Exec[$exec_title], $package_ref],
         context =&gt; &quot;VirtualHost&quot;,
       }
 
@@ -882,7 +904,7 @@ class simple_apache(
       }
 
       apache_directive { &quot;CustomLog in ${conf_file}&quot;:
-        args    =&gt; [$access_log, pick($opts[&#39;log_format&#39;], &#39;combined&#39;)]
+        args    =&gt; [$access_log, pick(dig($opts, &#39;log_format&#39;), &#39;combined&#39;)]
       }
 
       apache_directive { &quot;DocumentRoot in ${conf_file}&quot;:
@@ -892,7 +914,7 @@ class simple_apache(
       fm_prepend { $conf_file:
         ensure =&gt; present,
         data   =&gt; &quot;# Puppet has modified this file from the original!&quot;,
-        notify =&gt; Service[$service_name],
+        notify =&gt; $service_ref,
       }
 
     }
@@ -902,7 +924,7 @@ class simple_apache(
       file { &quot;${mod_dir}/${module}&quot;:
         ensure =&gt; link,
         target =&gt; &quot;${mod_available_dir}/${module}&quot;,
-        notify =&gt; Service[$service_name],
+        notify =&gt; $service_ref,
       }
     }
   }

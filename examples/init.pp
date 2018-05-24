@@ -9,8 +9,7 @@ class { "simple_apache":
     }
   },
   vhosts_enabled => {
-    "test.megacorp.com" => {
-    }
+    "test.megacorp.com" => undef
   },
   modules_enabled => [
     "php.conf"
