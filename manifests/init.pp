@@ -165,17 +165,13 @@ class simple_apache(
     require => $package_ref,
   }
 
-  mkdir::p { $vhost_dir:
-    ensure => directory,
-  }
+  mkdir::p { $vhost_dir: }
 
   mkdir::p { $vhost_enabled_dir:
-    ensure => directory,
     notify => $service_ref,
   }
 
   mkdir::p { $logroot:
-    ensure => directory,
     owner  => $apache_user,
     group  => $apache_group,
     notify => $service_ref,
@@ -227,7 +223,6 @@ class simple_apache(
 
     if ! defined(Mkdir::P[$error_logroot]) {
       mkdir::p { $error_logroot:
-        ensure => directory,
         owner  => $apache_user,
         group  => $apache_group,
         mode   => "0640",
@@ -237,7 +232,6 @@ class simple_apache(
 
     if ! defined(Mkdir::P[$access_logroot]) {
       mkdir::p { $access_logroot:
-        ensure => directory,
         owner  => $apache_user,
         group  => $apache_group,
         mode   => "0640",
@@ -247,7 +241,6 @@ class simple_apache(
 
 
     mkdir::p { $docroot:
-      ensure => directory,
       notify => $service_ref,
     }
 
