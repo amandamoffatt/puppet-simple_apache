@@ -225,7 +225,7 @@ class simple_apache(
     $access_logroot = dirname($access_log)
     $docroot = pick(dig($opts, 'docroot'), "${vhost_dir}/${key}")
 
-    if ! defined(File[$error_logroot]) {
+    if ! defined(Mkdir::P[$error_logroot]) {
       mkdir::p { $error_logroot:
         ensure => directory,
         owner  => $apache_user,
@@ -235,7 +235,7 @@ class simple_apache(
       }
     }
 
-    if ! defined(File[$access_logroot]) {
+    if ! defined(Mkdir::P[$access_logroot]) {
       mkdir::p { $access_logroot:
         ensure => directory,
         owner  => $apache_user,
