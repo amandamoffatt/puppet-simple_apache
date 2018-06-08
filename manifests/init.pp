@@ -69,10 +69,20 @@
 # @example Hiera data to install a vhost with (non-default settings)
 #   simple_apache::vhosts_enabled:
 #     "test.megacorp.com":
-#       docroot: /home/bob/test
+#       docroot: 
+#         path: /home/bob/test
 #       error_log: /home/bob/test/error.log
 #       access_log: /home/bob/test/access.log
 #       log_format: '"%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-agent}i\"" combined'
+#
+# @example Hiera data to install a vhost with specific docroot permissions
+#   simple_apache::vhosts_enabled:
+#     "test.megacorp.com":
+#       docroot: 
+#         path: /home/bob/test
+#         mode: '2750'
+#         owner: deployuser
+#         group: apache
 #
 # @example Hiera data to install a module (file must exist in config files from git)
 #   simple_apache::modules_enabled:
@@ -223,7 +233,11 @@ class simple_apache(
     $error_logroot = dirname($error_log)
     $access_log = pick(dig($opts, 'access_log'), "${logroot}/${key}-access_log")
     $access_logroot = dirname($access_log)
-    $docroot = pick(dig($opts, 'docroot'), "${vhost_dir}/${key}")
+    $docroot = pick(dig($opts, 'docroot', 'path'), "${vhost_dir}/${key}")
+    $docroot_owner = pick(dig($opts, 'docroot', 'owner'), 'root')
+    $docroot_group = pick(dig($opts, 'docroot', 'group'), 'root')
+    $docroot_mode = pick(dig($opts, 'docroot', 'mode'), '0755')
+
 
     if ! defined(File[$error_logroot]) {
       file { $error_logroot:
@@ -248,6 +262,9 @@ class simple_apache(
 
     file { $docroot:
       ensure => directory,
+      owner  => $docroot_owner,
+      group  => $docroot_group,
+      mode   => $docroot_mode,
       notify => $service_ref,
     }
 
