@@ -245,7 +245,6 @@ class simple_apache(
 
 
     mkdir::p { $docroot:
-      path   => $docroot,
       owner  => $docroot_owner,
       group  => $docroot_group,
       mode   => $docroot_mode,
