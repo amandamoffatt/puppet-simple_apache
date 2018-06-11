@@ -165,7 +165,7 @@ class simple_apache(
     require => $package_ref,
   }
 
-  file { $vhost_dir: 
+  file { $vhost_dir:
     ensure => directory,
   }
 
