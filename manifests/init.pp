@@ -219,7 +219,11 @@ class simple_apache(
     $error_logroot = dirname($error_log)
     $access_log = pick(dig($opts, 'access_log'), "${logroot}/${key}-access_log")
     $access_logroot = dirname($access_log)
-    $docroot = pick(dig($opts, 'docroot'), "${vhost_dir}/${key}")
+    $docroot = pick(dig($opts, 'docroot', 'path'), "${vhost_dir}/${key}")
+    $docroot_owner = pick(dig($opts, 'docroot', 'owner'), 'root')
+    $docroot_group = pick(dig($opts, 'docroot', 'group'), 'root')
+    $docroot_mode = pick(dig($opts, 'docroot', 'mode'), '0755')
+
 
     if ! defined(Mkdir::P[$error_logroot]) {
       mkdir::p { $error_logroot:
@@ -241,6 +245,9 @@ class simple_apache(
 
 
     mkdir::p { $docroot:
+      owner  => $docroot_owner,
+      group  => $docroot_group,
+      mode   => $docroot_mode,
       notify => $service_ref,
     }
 
