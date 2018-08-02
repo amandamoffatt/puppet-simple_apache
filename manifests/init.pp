@@ -69,10 +69,20 @@
 # @example Hiera data to install a vhost with (non-default settings)
 #   simple_apache::vhosts_enabled:
 #     "test.megacorp.com":
-#       docroot: /home/bob/test
+#       docroot: 
+#         path: /home/bob/test
 #       error_log: /home/bob/test/error.log
 #       access_log: /home/bob/test/access.log
 #       log_format: '"%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-agent}i\"" combined'
+#
+# @example Hiera data to install a vhost with specific docroot permissions
+#   simple_apache::vhosts_enabled:
+#     "test.megacorp.com":
+#       docroot: 
+#         path: /home/bob/test
+#         mode: '2750'
+#         owner: deployuser
+#         group: apache
 #
 # @example Hiera data to install a module (file must exist in config files from git)
 #   simple_apache::modules_enabled:
